@@ -28,7 +28,7 @@ if [ ! -d "$DIR" ]; then
 fi
 
 # Set the full path to the MATLAB executable
-MATLAB_CMD="/Applications/MATLAB_R2024a.app/bin/matlab"
+MATLAB_CMD="/opt/matlab/R2024b/bin/matlab"
 
 # Check if the MATLAB executable exists and is executable
 if [ ! -x "$MATLAB_CMD" ]; then
