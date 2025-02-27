@@ -1,0 +1,43 @@
+# Log files
+logs/
+*.log
+
+# MATLAB temporary files
+*.asv
+*.m~
+*.mex*
+*.mat
+
+# Python files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Processing output
+amicaout/
+*_wcomps.set
+
+# Temporary files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.tmp
+*~

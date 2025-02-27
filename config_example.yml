@@ -1,0 +1,53 @@
+# Fast ICA Framework Configuration
+
+# Global settings
+global:
+  # MATLAB installation paths for different environments
+  matlab:
+    local: /Applications/MATLAB_R2024a.app/bin/matlab
+    server: /opt/matlab/R2024b/bin/matlab
+    container: /usr/local/share/apptainer/bin/matlab-r2024a
+  
+  # EEGLAB paths
+  eeglab:
+    path: ~/eeglab  # Base EEGLAB directory
+    startup_options: "-nodisplay -nosplash -nodesktop"
+  
+  # Default AMICA parameters
+  amica:
+    num_models: 1
+    max_iter: 1000
+    remove_cz: true  # Whether to remove Cz channel before processing
+
+# Implementation-specific settings
+implementations:
+  parallel:
+    max_workers: 32  # Maximum parallel workers
+    worker_limit_factor: 0.5  # Use only half of available cores
+    max_jobs: 64  # Maximum number of parallel jobs
+    threads_per_worker: 1  # AMICA threads per worker
+    
+  serial:
+    max_threads: 2  # Maximum threads for AMICA
+    fallback_threads: 1  # Fallback if max_threads fails
+    
+  strengthen:
+    max_workers: 32
+    threads_per_worker: 1
+    cleanup_temp_files: true
+    
+# Project structure configuration
+project:
+  # For strengthen-ICA implementation
+  structure:
+    enabled: true  # Whether to use project structure
+    subjects: ["sub01", "sub02", "sub03"]  # Can be loaded from a file
+    nights: ["night1", "night2"]
+    file_template: "{subject}_{night}_cleaned.set"  # Template for filenames
+    
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_dir: "logs"
+  file_format: "ica_run_{timestamp}.log"
+  console_output: true
