@@ -297,10 +297,18 @@ case "$IMPLEMENTATION" in
         ;;
 esac
 
-# Cleanup temporary config file only if it's not in the project directory
-if [[ -n "$PROJECT_TEMP_DIR" && "$MATLAB_CONFIG_PATH" == "$PROJECT_TEMP_DIR"* ]]; then
-    # Keep the file in the project directory for reference
+# Cleanup temporary files
+if [[ -n "$PROJECT_TEMP_DIR" ]]; then
+    # Keep the config file but clean up other temp files
     echo "Configuration saved to $MATLAB_CONFIG_PATH"
+    
+    # Clean up random temporary directories (but keep the config files)
+    find "$PROJECT_TEMP_DIR" -type d -name "[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*" -exec rm -rf {} \; 2>/dev/null || true
+    
+    # Remove any other temporary files except JSON config files
+    find "$PROJECT_TEMP_DIR" -type f ! -name "*.json" -exec rm -f {} \; 2>/dev/null || true
+    
+    echo "Temporary files cleaned up"
 else
     # Remove temporary file
     rm -f "$MATLAB_CONFIG_PATH"
