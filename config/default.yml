@@ -10,7 +10,7 @@ global:
   
   # EEGLAB paths
   eeglab:
-    path: /Users/idohaber/Documents/MATLAB/eeglab2024.0/  # Base EEGLAB directory
+    path: /Users/idohaber/Documents/MATLAB/eeglab2024.0  # Base EEGLAB directory
     startup_options: "-nodisplay -nosplash -nodesktop"
   
   # Default AMICA parameters

@@ -111,7 +111,10 @@ fi
 if [[ -n "$DATA_DIR" && -d "$DATA_DIR" ]]; then
     # Export to project directory
     CONFIG_EXPORT_PATH="$PROJECT_TEMP_DIR/ica_config_${LOG_DATE}.json"
-    PYTHONWARNINGS=ignore python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS --export-matlab > "$CONFIG_EXPORT_PATH" 2>/dev/null
+    MATLAB_CONFIG=$(PYTHONWARNINGS=ignore python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS --export-matlab 2>/dev/null)
+    MATLAB_CONFIG_PATH=$(echo "$MATLAB_CONFIG" | awk '{print $NF}')
+    # Copy the file to the project directory
+    cp "$MATLAB_CONFIG_PATH" "$CONFIG_EXPORT_PATH"
     MATLAB_CONFIG_PATH="$CONFIG_EXPORT_PATH"
 else
     # Use system temp directory
