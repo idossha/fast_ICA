@@ -183,7 +183,7 @@ function run_analyze_ica(data_dir, config_file)
         end
     end
     
-    % Now call analyze_ICA with the loaded configuration
+    % Now call analyze_ica with the loaded configuration
     if nargin < 2
         % Call without config
         analyze_ica.run_amica_project(data_dir, subjects, nights, file_template);
