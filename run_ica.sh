@@ -103,18 +103,6 @@ MATLAB_CONFIG_PATH=$(echo "$MATLAB_CONFIG" | awk '{print $NF}')
 MATLAB_PATH=$(PYTHONWARNINGS=ignore python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS 2>/dev/null | grep -A1 "matlab:" | grep "$ENV\|local" | awk '{print $2}')
 MATLAB_OPTIONS=$(PYTHONWARNINGS=ignore python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS 2>/dev/null | grep -A2 "eeglab:" | grep "startup_options" | cut -d: -f2- | tr -d '"')
 
-# Print nicely formatted header
-echo "┌─────────────────────────────────────────────────────────┐"
-echo "│                 Fast ICA Processing Framework            │"
-echo "├─────────────────────────────────────────────────────────┤"
-printf "│ Implementation: %-43s │\n" "$IMPLEMENTATION"
-printf "│ Configuration:  %-43s │\n" "$(basename "$CONFIG_FILE")"
-printf "│ MATLAB:         %-43s │\n" "$(basename "$MATLAB_PATH")"
-echo "└─────────────────────────────────────────────────────────┘"
-
-# Create logs directory
-mkdir -p logs
-
 # Check if MATLAB_PATH is empty and provide fallback
 if [ -z "$MATLAB_PATH" ]; then
     # Try to find MATLAB in the PATH
@@ -143,6 +131,18 @@ if [ -z "$MATLAB_OPTIONS" ]; then
     MATLAB_OPTIONS="-nodisplay -nosplash -nodesktop"
     echo "Using default MATLAB options: $MATLAB_OPTIONS"
 fi
+
+# Print nicely formatted header
+echo "┌─────────────────────────────────────────────────────────┐"
+echo "│                 Fast ICA Processing Framework            │"
+echo "├─────────────────────────────────────────────────────────┤"
+printf "│ Implementation: %-43s │\n" "$IMPLEMENTATION"
+printf "│ Configuration:  %-43s │\n" "$(basename "$CONFIG_FILE")"
+printf "│ MATLAB:         %-43s │\n" "$(basename "$MATLAB_PATH")"
+echo "└─────────────────────────────────────────────────────────┘"
+
+# Create logs directory
+mkdir -p logs
 
 # Run implementation-specific MATLAB script
 LOG_DATE=$(date +%Y%m%d_%H%M%S)
