@@ -95,17 +95,22 @@ if [[ -n "$ENV" ]]; then
     ENV_ARGS="--env $ENV"
 fi
 
-# Export configuration for MATLAB
-MATLAB_CONFIG=$(python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS --export-matlab)
+# Export configuration for MATLAB (suppress warnings)
+MATLAB_CONFIG=$(PYTHONWARNINGS=ignore python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS --export-matlab 2>/dev/null)
 MATLAB_CONFIG_PATH=$(echo "$MATLAB_CONFIG" | awk '{print $NF}')
 
-# Get MATLAB path from config
-MATLAB_PATH=$(python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS | grep -A1 "matlab:" | grep "$ENV\|local" | awk '{print $2}')
-MATLAB_OPTIONS=$(python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS | grep -A2 "eeglab:" | grep "startup_options" | cut -d: -f2- | tr -d '"')
+# Get MATLAB path from config (suppress warnings)
+MATLAB_PATH=$(PYTHONWARNINGS=ignore python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS 2>/dev/null | grep -A1 "matlab:" | grep "$ENV\|local" | awk '{print $2}')
+MATLAB_OPTIONS=$(PYTHONWARNINGS=ignore python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS 2>/dev/null | grep -A2 "eeglab:" | grep "startup_options" | cut -d: -f2- | tr -d '"')
 
-echo "Running $IMPLEMENTATION ICA implementation..."
-echo "Configuration: $CONFIG_FILE"
-echo "MATLAB: $MATLAB_PATH"
+# Print nicely formatted header
+echo "┌─────────────────────────────────────────────────────────┐"
+echo "│                 Fast ICA Processing Framework            │"
+echo "├─────────────────────────────────────────────────────────┤"
+printf "│ Implementation: %-43s │\n" "$IMPLEMENTATION"
+printf "│ Configuration:  %-43s │\n" "$(basename "$CONFIG_FILE")"
+printf "│ MATLAB:         %-43s │\n" "$(basename "$MATLAB_PATH")"
+echo "└─────────────────────────────────────────────────────────┘"
 
 # Create logs directory
 mkdir -p logs
@@ -141,36 +146,124 @@ fi
 
 # Run implementation-specific MATLAB script
 LOG_DATE=$(date +%Y%m%d_%H%M%S)
+
+# Function to show spinner while process is running
+show_spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/-\'
+    while [ "$(ps -p $pid | wc -l)" -gt 1 ]; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
 case "$IMPLEMENTATION" in
     parallel)
-        echo "Running parallel ICA on data directory: $DATA_DIR"
         LOG_FILE="logs/parallel_ica_${LOG_DATE}.log"
-        echo "Running: $MATLAB_PATH $MATLAB_OPTIONS -r \"addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/parallel-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;\""
-        $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/parallel-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;" > "$LOG_FILE" 2>&1
-        echo "Log file: $LOG_FILE"
+        
+        echo "┌─────────────────────────────────────────────────────────┐"
+        echo "│ Processing parallel ICA on data directory                │"
+        printf "│ Data: %-53s │\n" "$(basename "$DATA_DIR")"
+        echo "└─────────────────────────────────────────────────────────┘"
+        
+        # Run MATLAB process in background and capture PID
+        $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/parallel-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;" > "$LOG_FILE" 2>&1 &
+        matlab_pid=$!
+        
+        # Show progress indicator
+        echo -n "Processing ICA components"
+        show_spinner $matlab_pid
+        
+        # Check if process completed successfully
+        if wait $matlab_pid; then
+            echo -e "\n✅ ICA processing complete!"
+        else
+            echo -e "\n❌ Error during ICA processing. Check log file for details."
+        fi
+        echo "📄 Log file: $LOG_FILE"
         ;;
+        
     serial)
-        echo "Running serial ICA on data directory: $DATA_DIR"
+        echo "┌─────────────────────────────────────────────────────────┐"
+        echo "│ Processing serial ICA on data directory                  │"
+        printf "│ Data: %-53s │\n" "$(basename "$DATA_DIR")"
+        echo "└─────────────────────────────────────────────────────────┘"
+        
+        # Count files to process
+        file_count=$(find "$DATA_DIR" -name "*.set" | wc -l)
+        current=0
+        
         for file in "$DATA_DIR"/*.set; do
             if [[ -f "$file" ]]; then
-                echo "Processing file: $file"
+                current=$((current + 1))
                 LOG_FILE="logs/serial_ica_$(basename "$file")_${LOG_DATE}.log"
-                echo "Running: $MATLAB_PATH $MATLAB_OPTIONS -r \"addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/serial-ICA'); run_analyze_ica('$file', '$MATLAB_CONFIG_PATH'); exit;\""
-                $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/serial-ICA'); run_analyze_ica('$file', '$MATLAB_CONFIG_PATH'); exit;" > "$LOG_FILE" 2>&1
-                echo "Log file: $LOG_FILE"
+                
+                # Show progress
+                printf "[%d/%d] Processing: %s\n" "$current" "$file_count" "$(basename "$file")"
+                
+                # Run MATLAB process in background and capture PID
+                $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/serial-ICA'); run_analyze_ica('$file', '$MATLAB_CONFIG_PATH'); exit;" > "$LOG_FILE" 2>&1 &
+                matlab_pid=$!
+                
+                # Show spinner for this file
+                echo -n "  → Computing ICA"
+                show_spinner $matlab_pid
+                
+                # Check completion status
+                if wait $matlab_pid; then
+                    echo -e " ✅"
+                else
+                    echo -e " ❌ Error processing file"
+                fi
             fi
         done
+        
+        echo "✅ Serial ICA processing complete!"
+        echo "📄 Log files saved to: logs/"
         ;;
+        
     strengthen)
-        echo "Running strengthen ICA on project directory: $DATA_DIR"
         LOG_FILE="logs/strengthen_ica_${LOG_DATE}.log"
-        echo "Running: $MATLAB_PATH $MATLAB_OPTIONS -r \"addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/strengthen-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;\""
-        $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/strengthen-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;" > "$LOG_FILE" 2>&1
-        echo "Log file: $LOG_FILE"
+        
+        echo "┌─────────────────────────────────────────────────────────┐"
+        echo "│ Processing strengthen ICA on project directory           │"
+        printf "│ Project: %-50s │\n" "$(basename "$DATA_DIR")"
+        echo "└─────────────────────────────────────────────────────────┘"
+        
+        # Run MATLAB process in background and capture PID
+        $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/strengthen-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;" > "$LOG_FILE" 2>&1 &
+        matlab_pid=$!
+        
+        # Set up a live progress monitoring by following the log file
+        echo "⏳ Processing ICA components... (Ctrl+C to background)"
+        
+        sleep 1 # Give MATLAB a second to start writing logs
+        
+        # Follow the log to monitor progress (with a fallback if timeout not available)
+        if command -v timeout >/dev/null 2>&1; then
+            timeout 2 tail -f "$LOG_FILE" 2>/dev/null || true
+        else
+            # Fallback for systems without timeout command
+            tail -n 10 "$LOG_FILE" 2>/dev/null || true
+        fi
+        
+        echo -n "Computing ICA components (this may take some time)"
+        show_spinner $matlab_pid
+        
+        # Check if process completed successfully
+        if wait $matlab_pid; then
+            echo -e "\n✅ Strengthen ICA processing complete!"
+        else
+            echo -e "\n❌ Error during ICA processing. Check log file for details."
+        fi
+        echo "📄 Log file: $LOG_FILE"
         ;;
 esac
-
-echo "ICA processing complete. Check logs directory for output."
 
 # Cleanup temporary config file
 rm -f "$MATLAB_CONFIG_PATH"
