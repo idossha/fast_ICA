@@ -10,7 +10,7 @@ global:
   
   # EEGLAB paths
   eeglab:
-    path: ~/eeglab  # Base EEGLAB directory
+    path: /Users/idohaber/Documents/MATLAB/eeglab2024.0/  # Base EEGLAB directory
     startup_options: "-nodisplay -nosplash -nodesktop"
   
   # Default AMICA parameters
@@ -44,9 +44,9 @@ project:
   # For strengthen-ICA implementation
   structure:
     enabled: true  # Whether to use project structure
-    subjects: ["sub01", "sub02", "sub03"]  # Can be loaded from a file
-    nights: ["night1", "night2"]
-    file_template: "{subject}_{night}_cleaned.set"  # Template for filenames
+    subjects: []  # Empty array means auto-detect
+    nights: []  # Empty array means auto-detect
+    file_template: ""  # Empty string means auto-detect
     
 # Logging configuration
 logging:

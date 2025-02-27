@@ -161,17 +161,108 @@ function run_analyze_ica(data_dir, config_file)
                 if ~isempty(files)
                     % Use the first .set file name as template
                     template_file = files(1).name;
+                    fprintf('Found .set file: %s\n', template_file);
                     
-                    % Replace subject ID with %s
-                    template_file = strrep(template_file, first_subject, '%s');
+                    % Try different template guessing strategies
                     
-                    % Replace night ID with %s if not empty
-                    if ~isempty(first_night)
-                        template_file = strrep(template_file, first_night, '%s');
+                    % Strategy 1: Direct replacement if subject/night are in the filename
+                    template1 = template_file;
+                    if contains(template1, first_subject)
+                        template1 = strrep(template1, first_subject, '%s');
+                        
+                        if ~isempty(first_night) && contains(template1, first_night)
+                            template1 = strrep(template1, first_night, '%s');
+                        end
                     end
                     
-                    file_template = template_file;
-                    fprintf('Using guessed file template: %s\n', file_template);
+                    % Strategy 2: Look for common pattern Prefix_Subject_Night_Suffix
+                    template2 = template_file;
+                    [~, basename, ~] = fileparts(template2);
+                    if contains(basename, '_')
+                        parts = strsplit(basename, '_');
+                        if length(parts) >= 3
+                            % Common format: "Strength_101_N1_forICA.set"
+                            if ~isempty(first_night)
+                                template2 = [parts{1}, '_%s_%s'];
+                                if length(parts) > 3
+                                    template2 = [template2, '_', strjoin(parts(4:end), '_')];
+                                end
+                                template2 = [template2, '.set'];
+                            else
+                                template2 = [parts{1}, '_%s'];
+                                if length(parts) > 2
+                                    template2 = [template2, '_', strjoin(parts(3:end), '_')];
+                                end 
+                                template2 = [template2, '.set'];
+                            end
+                        end
+                    end
+                    
+                    % Strategy 3: Hardcoded templates for common formats
+                    templates_to_try = {'Strength_%s_%s_forICA.set', '%s_%s_forICA.set', '%s_%s.set'};
+                    if isempty(first_night)
+                        templates_to_try = {'Strength_%s_forICA.set', '%s_forICA.set', '%s.set'};
+                    end
+                    
+                    % Test all templates
+                    working_templates = {};
+                    
+                    % Test strategy 1
+                    try
+                        if isempty(first_night)
+                            test_name = sprintf(template1, first_subject);
+                        else
+                            test_name = sprintf(template1, first_subject, first_night);
+                        end
+                        
+                        if exist(fullfile(search_dir, test_name), 'file')
+                            working_templates{end+1} = template1;
+                        end
+                    catch
+                        % Template doesn't work, skip it
+                    end
+                    
+                    % Test strategy 2
+                    try
+                        if isempty(first_night)
+                            test_name = sprintf(template2, first_subject);
+                        else
+                            test_name = sprintf(template2, first_subject, first_night);
+                        end
+                        
+                        if exist(fullfile(search_dir, test_name), 'file')
+                            working_templates{end+1} = template2;
+                        end
+                    catch
+                        % Template doesn't work, skip it
+                    end
+                    
+                    % Test hardcoded templates
+                    for i = 1:length(templates_to_try)
+                        try
+                            if isempty(first_night)
+                                test_name = sprintf(templates_to_try{i}, first_subject);
+                            else
+                                test_name = sprintf(templates_to_try{i}, first_subject, first_night);
+                            end
+                            
+                            if exist(fullfile(search_dir, test_name), 'file')
+                                working_templates{end+1} = templates_to_try{i};
+                            end
+                        catch
+                            % Template doesn't work, skip it
+                        end
+                    end
+                    
+                    % Choose the best working template
+                    if ~isempty(working_templates)
+                        file_template = working_templates{1};
+                        fprintf('Using guessed file template: %s\n', file_template);
+                    else
+                        % Fallback: Just use the exact filename (will be handled specially in analyze_ica.m)
+                        fprintf('WARNING: Could not guess template. Using exact filename: %s\n', template_file);
+                        file_template = template_file;
+                    end
                 else
                     error('No .set files found in %s and no file template specified in configuration.', search_dir);
                 end
