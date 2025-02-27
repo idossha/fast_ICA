@@ -100,6 +100,9 @@ classdef analyze_ica
                     mkdir(outdir);
                 end
                 
+                % Define cleanup function to handle temporary files
+                cleanupObj = onCleanup(@() cleanup_temp_files(outdir, pwd, filepath));
+                
                 statusFile = fullfile(outdir, 'status.txt');
                 txtout = fopen(statusFile, 'w');
                 if txtout == -1
@@ -205,5 +208,73 @@ function value = getConfigParam(config, field, default)
         value = config.(field);
     else
         value = default;
+    end
+end
+
+% Function to clean up temporary files
+function cleanup_temp_files(outdir, current_dir, filepath)
+    % Delete temporary files in the output directory
+    tempFiles = dir(fullfile(outdir, 'tmpdata*.fdt'));
+    for k = 1:length(tempFiles)
+        tempFilePath = fullfile(tempFiles(k).folder, tempFiles(k).name);
+        if exist(tempFilePath, 'file')
+            delete(tempFilePath);
+            fprintf('Deleted temporary file: %s\n', tempFilePath);
+        end
+    end
+    
+    % Also clean up any temporary files in the current directory
+    tempFilesWD = dir(fullfile(current_dir, 'tmpdata*.fdt'));
+    for k = 1:length(tempFilesWD)
+        tempFilePath = fullfile(tempFilesWD(k).folder, tempFilesWD(k).name);
+        if exist(tempFilePath, 'file')
+            delete(tempFilePath);
+            fprintf('Deleted working directory temporary file: %s\n', tempFilePath);
+        end
+    end
+    
+    % Also clean up any temporary files in the file path
+    tempFilesFP = dir(fullfile(filepath, 'tmpdata*.fdt'));
+    for k = 1:length(tempFilesFP)
+        tempFilePath = fullfile(tempFilesFP(k).folder, tempFilesFP(k).name);
+        if exist(tempFilePath, 'file')
+            delete(tempFilePath);
+            fprintf('Deleted filepath temporary file: %s\n', tempFilePath);
+        end
+    end
+    
+    % Also try to clean up in the MATLAB startup directory
+    try
+        startup_dir = pwd;
+        tempFilesSD = dir(fullfile(startup_dir, 'tmpdata*.fdt'));
+        for k = 1:length(tempFilesSD)
+            tempFilePath = fullfile(tempFilesSD(k).folder, tempFilesSD(k).name);
+            if exist(tempFilePath, 'file')
+                delete(tempFilePath);
+                fprintf('Deleted startup directory temporary file: %s\n', tempFilePath);
+            end
+        end
+    catch
+        % Ignore errors in this part
+    end
+    
+    % Try to find and clean up any temporary files anywhere in the MATLAB path
+    try
+        % Special cleanup for any remaining tmpdata files that might be created
+        all_paths = strsplit(path, pathsep);
+        for p = 1:length(all_paths)
+            if ~isempty(all_paths{p})
+                tempFilesPath = dir(fullfile(all_paths{p}, 'tmpdata*.fdt'));
+                for k = 1:length(tempFilesPath)
+                    tempFilePath = fullfile(tempFilesPath(k).folder, tempFilesPath(k).name);
+                    if exist(tempFilePath, 'file')
+                        delete(tempFilePath);
+                        fprintf('Deleted path directory temporary file: %s\n', tempFilePath);
+                    end
+                end
+            end
+        end
+    catch
+        % Ignore errors in this part
     end
 end

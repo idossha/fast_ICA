@@ -98,6 +98,13 @@ fi
 # Get timestamp for logs and files
 LOG_DATE=$(date +%Y%m%d_%H%M%S)
 
+# Clean up any leftover temporary files from previous runs
+rm -f "$SCRIPT_DIR"/tmpdata*.fdt
+rm -f "$PWD"/tmpdata*.fdt
+if [[ -n "$DATA_DIR" && -d "$DATA_DIR" ]]; then
+    rm -f "$DATA_DIR"/tmpdata*.fdt
+fi
+
 # Set up temp directory in the project if possible
 if [[ -n "$DATA_DIR" && -d "$DATA_DIR" ]]; then
     # Create temp directory inside the project
@@ -109,7 +116,18 @@ if [[ -n "$DATA_DIR" && -d "$DATA_DIR" ]]; then
     # Set up trap to clean up temp files on exit, interrupt, or termination
     cleanup() {
         echo "Cleaning up temporary files..."
+        # Remove the project temp directory
         rm -rf "$PROJECT_TEMP_DIR"
+        
+        # Also clean up any tmpdata files in the current directory and script directory
+        rm -f "$SCRIPT_DIR"/tmpdata*.fdt
+        rm -f "$PWD"/tmpdata*.fdt
+        
+        # And in the data directory if specified
+        if [[ -n "$DATA_DIR" && -d "$DATA_DIR" ]]; then
+            rm -f "$DATA_DIR"/tmpdata*.fdt
+        fi
+        
         exit
     }
     trap cleanup EXIT INT TERM

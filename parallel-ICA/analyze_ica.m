@@ -150,7 +150,7 @@ classdef analyze_ica
                     end
 
                     % Define cleanup function to delete temporary files
-                    cleanupObj = onCleanup(@() cleanup_temp_files(outdir));
+                    cleanupObj = onCleanup(@() cleanup_temp_files(outdir, pwd));
 
                     % Run AMICA with configured threads
                     fprintf(txtout, 'Running runamica15 with %d thread(s)\n', max_threads);
@@ -230,7 +230,7 @@ function value = getConfigParam(config, field, default)
 end
 
 % Function to clean up temporary files
-function cleanup_temp_files(outdir)
+function cleanup_temp_files(outdir, current_dir)
     % Delete temporary files in the output directory
     tempFiles = dir(fullfile(outdir, 'tmpdata*.fdt'));
     for k = 1:length(tempFiles)
@@ -239,5 +239,30 @@ function cleanup_temp_files(outdir)
             delete(tempFilePath);
             fprintf('Deleted temporary file: %s\n', tempFilePath);
         end
+    end
+    
+    % Also clean up any temporary files in the current directory
+    tempFilesWD = dir(fullfile(current_dir, 'tmpdata*.fdt'));
+    for k = 1:length(tempFilesWD)
+        tempFilePath = fullfile(tempFilesWD(k).folder, tempFilesWD(k).name);
+        if exist(tempFilePath, 'file')
+            delete(tempFilePath);
+            fprintf('Deleted working directory temporary file: %s\n', tempFilePath);
+        end
+    end
+    
+    % Also try to clean up in the MATLAB startup directory
+    try
+        startup_dir = pwd;
+        tempFilesSD = dir(fullfile(startup_dir, 'tmpdata*.fdt'));
+        for k = 1:length(tempFilesSD)
+            tempFilePath = fullfile(tempFilesSD(k).folder, tempFilesSD(k).name);
+            if exist(tempFilePath, 'file')
+                delete(tempFilePath);
+                fprintf('Deleted startup directory temporary file: %s\n', tempFilePath);
+            end
+        end
+    catch
+        % Ignore errors in this part
     end
 end
