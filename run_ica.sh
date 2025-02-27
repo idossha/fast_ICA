@@ -95,9 +95,29 @@ if [[ -n "$ENV" ]]; then
     ENV_ARGS="--env $ENV"
 fi
 
+# Get timestamp for logs and files
+LOG_DATE=$(date +%Y%m%d_%H%M%S)
+
+# Set up temp directory in the project if possible
+if [[ -n "$DATA_DIR" && -d "$DATA_DIR" ]]; then
+    # Create temp directory inside the project
+    PROJECT_TEMP_DIR="$DATA_DIR/fast_ica_temp"
+    mkdir -p "$PROJECT_TEMP_DIR"
+    export TMPDIR="$PROJECT_TEMP_DIR"
+    echo "Temporary files will be stored in: $PROJECT_TEMP_DIR"
+fi
+
 # Export configuration for MATLAB (suppress warnings)
-MATLAB_CONFIG=$(PYTHONWARNINGS=ignore python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS --export-matlab 2>/dev/null)
-MATLAB_CONFIG_PATH=$(echo "$MATLAB_CONFIG" | awk '{print $NF}')
+if [[ -n "$DATA_DIR" && -d "$DATA_DIR" ]]; then
+    # Export to project directory
+    CONFIG_EXPORT_PATH="$PROJECT_TEMP_DIR/ica_config_${LOG_DATE}.json"
+    PYTHONWARNINGS=ignore python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS --export-matlab > "$CONFIG_EXPORT_PATH" 2>/dev/null
+    MATLAB_CONFIG_PATH="$CONFIG_EXPORT_PATH"
+else
+    # Use system temp directory
+    MATLAB_CONFIG=$(PYTHONWARNINGS=ignore python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS --export-matlab 2>/dev/null)
+    MATLAB_CONFIG_PATH=$(echo "$MATLAB_CONFIG" | awk '{print $NF}')
+fi
 
 # Get MATLAB path from config (suppress warnings)
 MATLAB_PATH=$(PYTHONWARNINGS=ignore python3 -m utils.config_parser.config --implementation "$IMPLEMENTATION" --config "$CONFIG_FILE" $ENV_ARGS 2>/dev/null | grep -A1 "matlab:" | grep "$ENV\|local" | awk '{print $2}')
@@ -141,11 +161,20 @@ printf "│ Configuration:  %-43s │\n" "$(basename "$CONFIG_FILE")"
 printf "│ MATLAB:         %-43s │\n" "$(basename "$MATLAB_PATH")"
 echo "└─────────────────────────────────────────────────────────┘"
 
-# Create logs directory
-mkdir -p logs
+# Create logs directory in the project directory instead of the current directory
+if [[ -n "$DATA_DIR" && -d "$DATA_DIR" ]]; then
+    # Create logs directory inside the project
+    PROJECT_LOGS_DIR="$DATA_DIR/fast_ica_logs"
+    mkdir -p "$PROJECT_LOGS_DIR"
+    LOG_DIR="$PROJECT_LOGS_DIR"
+    echo "Logs will be saved to: $LOG_DIR"
+else
+    # Fallback to local logs if data directory is not valid
+    LOG_DIR="$SCRIPT_DIR/logs"
+    mkdir -p "$LOG_DIR"
+fi
 
 # Run implementation-specific MATLAB script
-LOG_DATE=$(date +%Y%m%d_%H%M%S)
 
 # Function to show spinner while process is running
 show_spinner() {
@@ -164,7 +193,7 @@ show_spinner() {
 
 case "$IMPLEMENTATION" in
     parallel)
-        LOG_FILE="logs/parallel_ica_${LOG_DATE}.log"
+        LOG_FILE="$LOG_DIR/parallel_ica_${LOG_DATE}.log"
         
         echo "┌─────────────────────────────────────────────────────────┐"
         echo "│ Processing parallel ICA on data directory                │"
@@ -201,7 +230,7 @@ case "$IMPLEMENTATION" in
         for file in "$DATA_DIR"/*.set; do
             if [[ -f "$file" ]]; then
                 current=$((current + 1))
-                LOG_FILE="logs/serial_ica_$(basename "$file")_${LOG_DATE}.log"
+                LOG_FILE="$LOG_DIR/serial_ica_$(basename "$file")_${LOG_DATE}.log"
                 
                 # Show progress
                 printf "[%d/%d] Processing: %s\n" "$current" "$file_count" "$(basename "$file")"
@@ -224,11 +253,11 @@ case "$IMPLEMENTATION" in
         done
         
         echo "✅ Serial ICA processing complete!"
-        echo "📄 Log files saved to: logs/"
+        echo "📄 Log files saved to: $LOG_DIR/"
         ;;
         
     strengthen)
-        LOG_FILE="logs/strengthen_ica_${LOG_DATE}.log"
+        LOG_FILE="$LOG_DIR/strengthen_ica_${LOG_DATE}.log"
         
         echo "┌─────────────────────────────────────────────────────────┐"
         echo "│ Processing strengthen ICA on project directory           │"
@@ -265,5 +294,11 @@ case "$IMPLEMENTATION" in
         ;;
 esac
 
-# Cleanup temporary config file
-rm -f "$MATLAB_CONFIG_PATH"
+# Cleanup temporary config file only if it's not in the project directory
+if [[ -n "$PROJECT_TEMP_DIR" && "$MATLAB_CONFIG_PATH" == "$PROJECT_TEMP_DIR"* ]]; then
+    # Keep the file in the project directory for reference
+    echo "Configuration saved to $MATLAB_CONFIG_PATH"
+else
+    # Remove temporary file
+    rm -f "$MATLAB_CONFIG_PATH"
+fi
