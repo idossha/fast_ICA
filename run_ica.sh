@@ -105,6 +105,14 @@ if [[ -n "$DATA_DIR" && -d "$DATA_DIR" ]]; then
     mkdir -p "$PROJECT_TEMP_DIR"
     export TMPDIR="$PROJECT_TEMP_DIR"
     echo "Temporary files will be stored in: $PROJECT_TEMP_DIR"
+    
+    # Set up trap to clean up temp files on exit, interrupt, or termination
+    cleanup() {
+        echo "Cleaning up temporary files..."
+        rm -rf "$PROJECT_TEMP_DIR"
+        exit
+    }
+    trap cleanup EXIT INT TERM
 fi
 
 # Export configuration for MATLAB (suppress warnings)
@@ -297,19 +305,8 @@ case "$IMPLEMENTATION" in
         ;;
 esac
 
-# Cleanup temporary files
-if [[ -n "$PROJECT_TEMP_DIR" ]]; then
-    # Keep the config file but clean up other temp files
-    echo "Configuration saved to $MATLAB_CONFIG_PATH"
-    
-    # Clean up random temporary directories (but keep the config files)
-    find "$PROJECT_TEMP_DIR" -type d -name "[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*" -exec rm -rf {} \; 2>/dev/null || true
-    
-    # Remove any other temporary files except JSON config files
-    find "$PROJECT_TEMP_DIR" -type f ! -name "*.json" -exec rm -f {} \; 2>/dev/null || true
-    
-    echo "Temporary files cleaned up"
-else
-    # Remove temporary file
+# Temporary files will be cleaned up by the EXIT trap
+# If no trap was set (no project directory), clean up the individual temp file
+if [[ -z "$PROJECT_TEMP_DIR" ]]; then
     rm -f "$MATLAB_CONFIG_PATH"
 fi
