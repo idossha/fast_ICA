@@ -110,24 +110,63 @@ echo "MATLAB: $MATLAB_PATH"
 # Create logs directory
 mkdir -p logs
 
+# Check if MATLAB_PATH is empty and provide fallback
+if [ -z "$MATLAB_PATH" ]; then
+    # Try to find MATLAB in the PATH
+    if command -v matlab &> /dev/null; then
+        MATLAB_PATH="matlab"
+        echo "Using default MATLAB path from PATH: $MATLAB_PATH"
+    else
+        # Look for common MATLAB installations
+        for possible_path in "/Applications/MATLAB_R2023b.app/bin/matlab" "/Applications/MATLAB_R2024a.app/bin/matlab" "/Applications/MATLAB.app/bin/matlab" "/usr/local/bin/matlab" "/opt/matlab/bin/matlab"; do
+            if [ -f "$possible_path" ]; then
+                MATLAB_PATH="$possible_path"
+                echo "Found MATLAB at: $MATLAB_PATH"
+                break
+            fi
+        done
+        
+        if [ -z "$MATLAB_PATH" ]; then
+            echo "ERROR: Could not find MATLAB. Please specify the correct path in your config file."
+            echo "Edit config/default.yml to set the correct path for your environment."
+            exit 1
+        fi
+    fi
+fi
+
+if [ -z "$MATLAB_OPTIONS" ]; then
+    MATLAB_OPTIONS="-nodisplay -nosplash -nodesktop"
+    echo "Using default MATLAB options: $MATLAB_OPTIONS"
+fi
+
 # Run implementation-specific MATLAB script
+LOG_DATE=$(date +%Y%m%d_%H%M%S)
 case "$IMPLEMENTATION" in
     parallel)
         echo "Running parallel ICA on data directory: $DATA_DIR"
-        $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/parallel-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;" > logs/parallel_ica_$(date +%Y%m%d_%H%M%S).log 2>&1
+        LOG_FILE="logs/parallel_ica_${LOG_DATE}.log"
+        echo "Running: $MATLAB_PATH $MATLAB_OPTIONS -r \"addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/parallel-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;\""
+        $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/parallel-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;" > "$LOG_FILE" 2>&1
+        echo "Log file: $LOG_FILE"
         ;;
     serial)
         echo "Running serial ICA on data directory: $DATA_DIR"
         for file in "$DATA_DIR"/*.set; do
             if [[ -f "$file" ]]; then
                 echo "Processing file: $file"
-                $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/serial-ICA'); run_analyze_ica('$file', '$MATLAB_CONFIG_PATH'); exit;" > logs/serial_ica_$(basename "$file")_$(date +%Y%m%d_%H%M%S).log 2>&1
+                LOG_FILE="logs/serial_ica_$(basename "$file")_${LOG_DATE}.log"
+                echo "Running: $MATLAB_PATH $MATLAB_OPTIONS -r \"addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/serial-ICA'); run_analyze_ica('$file', '$MATLAB_CONFIG_PATH'); exit;\""
+                $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/serial-ICA'); run_analyze_ica('$file', '$MATLAB_CONFIG_PATH'); exit;" > "$LOG_FILE" 2>&1
+                echo "Log file: $LOG_FILE"
             fi
         done
         ;;
     strengthen)
         echo "Running strengthen ICA on project directory: $DATA_DIR"
-        $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/strengthen-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;" > logs/strengthen_ica_$(date +%Y%m%d_%H%M%S).log 2>&1
+        LOG_FILE="logs/strengthen_ica_${LOG_DATE}.log"
+        echo "Running: $MATLAB_PATH $MATLAB_OPTIONS -r \"addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/strengthen-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;\""
+        $MATLAB_PATH $MATLAB_OPTIONS -r "addpath('$SCRIPT_DIR'); addpath('$SCRIPT_DIR/strengthen-ICA'); run_analyze_ica('$DATA_DIR', '$MATLAB_CONFIG_PATH'); exit;" > "$LOG_FILE" 2>&1
+        echo "Log file: $LOG_FILE"
         ;;
 esac
 
